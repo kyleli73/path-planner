@@ -20,6 +20,7 @@
   <span class="sp"></span>
   <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
   <button id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+  <select id="alliance" title="Alliance (red bottom, blue top)"><option value="red">Red</option><option value="blue">Blue</option></select>
   <button id="mirror" title="Mirror to other alliance (M)">Mirror</button>
   <button id="help" title="Shortcuts (?)">?</button>
 </header>
@@ -40,6 +41,7 @@
       <button class="chip" data-ov="heat">Curvature</button>
       <button class="chip" data-ov="bounds">Bounds</button>
       <button class="chip" data-ov="obstacles">Obstacles</button>
+      <button class="chip" data-ov="zones">Zones</button>
     </div>
     <div id="stage"><canvas id="field"></canvas><div id="coords">x -, y -</div></div>
     <div id="playbar">
@@ -67,8 +69,8 @@
         <h3>Field image</h3>
         <input type="file" id="imgFile" accept="image/*">
         <label>Opacity<input type="range" id="imgOpacity" min="0" max="1" step="0.05"></label>
-        <button id="imgClear">Remove image</button>
-        <p class="hint">Stored only in this browser. The image is stretched over the 144 x 144 in field.</p>
+        <button id="imgReset">Reset field image</button>
+        <p class="hint">Stored only in this browser. Default is field.png; an upload overrides it. The image is stretched over the 144 x 144 in field.</p>
       </section>
     </div>
     <div id="timing" class="rpanel">

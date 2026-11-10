@@ -1,8 +1,8 @@
-const CACHE = 'bubblotics-path-planner-v2';
+const CACHE = 'bubblotics-path-planner-v3';
 const SHELL = [
   './', './index.html', './styles.css', './manifest.webmanifest', './icon.svg',
   './src/main.js', './src/ui.js', './src/store.js', './src/bezier.js', './src/heading.js',
-  './src/profile.js', './src/collision.js', './src/codegen.js', './src/render.js',
+  './src/profile.js', './src/collision.js', './src/codegen.js', './src/render.js', './src/field.js', './field.png',
 ];
 
 self.addEventListener('install', (e) => {

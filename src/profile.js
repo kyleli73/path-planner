@@ -1,6 +1,7 @@
 import { evalBezier, curvature, segmentPoints } from './bezier.js';
 import { headingAt, normDeg, startsOf } from './heading.js';
 import { analyzeSamples } from './collision.js';
+import { FIELD_OBSTACLES } from './field.js';
 
 const V_FLOOR = 1; // in/s; keeps near-cusp samples from producing infinite times
 
@@ -79,11 +80,13 @@ export function derived(project) {
   const hitSet = new Set();
   let oobCount = 0, hitCount = 0;
   timeline.chains.forEach((c) => {
-    c.analysis = analyzeSamples(c.samples, project.robot, project.obstacles);
+    c.analysis = analyzeSamples(c.samples, project.robot, FIELD_OBSTACLES.concat(project.obstacles));
     oobCount += c.analysis.oobCount; hitCount += c.analysis.hitCount;
     c.analysis.hitSet.forEach((i) => hitSet.add(i));
   });
-  d = { timeline, oobCount, hitCount, hitSet };
+  const waits = project.chains.map((ch) => ch.segments.reduce((a, s) => a + (s.action?.wait || 0), 0));
+  const waitTotal = waits.reduce((a, b) => a + b, 0);
+  d = { timeline, oobCount, hitCount, hitSet, waits, waitTotal };
   memo.set(project, d);
   return d;
 }

@@ -18,9 +18,9 @@ if (!data.current) { const p = defaultProject('My first auto'); data.projects[p.
 const prefs = read(UIKEY) || {};
 const store = createStore(data.projects[data.current], {
   overlays: prefs.overlays ? { footprint: true, ticks: true, swept: false, heat: false, bounds: true, obstacles: true, ...prefs.overlays } : undefined,
-  imageOpacity: typeof prefs.imageOpacity === 'number' ? prefs.imageOpacity : 0.5,
+  imageOpacity: typeof prefs.imageOpacity === 'number' ? prefs.imageOpacity : 1,
 });
-if (!prefs.overlays) store.get().ui.overlays = { footprint: true, ticks: true, swept: false, heat: false, bounds: true, obstacles: true };
+if (!prefs.overlays) store.get().ui.overlays = { footprint: true, ticks: true, swept: false, heat: false, bounds: true, obstacles: true, zones: true };
 
 /* autosave */
 let timer = 0;

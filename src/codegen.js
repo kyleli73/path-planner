@@ -72,6 +72,10 @@ export function generateJava(project) {
     if (i < project.chains.length - 1) L.push('');
   });
   L.push('    }');
+  const acts = project.chains.flatMap((ch) => ch.segments.filter((s) => s.action));
+  L.push('');
+  L.push(`    public static final String[] ACTIONS = {${acts.map((s) => `"${s.action.type}"`).join(', ')}};`);
+  L.push(`    public static final double[] ACTION_WAITS = {${acts.map((s) => fmt(s.action.wait)).join(', ')}};`);
   L.push('}');
   return L.join('\n') + '\n';
 }

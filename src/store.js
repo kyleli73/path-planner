@@ -1,4 +1,5 @@
 import { startsOf, tailPose } from './heading.js';
+import { ACTIONS } from './field.js';
 
 export const FIELD = 144;
 export const uid = (p) => p + Math.random().toString(36).slice(2, 9);
@@ -7,17 +8,18 @@ const clone = (o) => structuredClone(o);
 const num = (v, d) => (Number.isFinite(+v) ? +v : d);
 
 export const defaultRobot = () => ({ w: 18, l: 18, maxVel: 50, maxAccel: 40, maxLatAccel: 30 });
-export const defaultOverlays = () => ({ footprint: true, ticks: true, swept: false, heat: false, bounds: true, obstacles: true });
+export const defaultOverlays = () => ({ footprint: true, ticks: true, swept: false, heat: false, bounds: true, obstacles: true, zones: true });
 
 export function defaultProject(name = 'New auto') {
   const p = {
     id: uid('p_'), name, updatedAt: Date.now(), robot: defaultRobot(),
-    startPose: { x: 56, y: 9, h: 90 },
+    alliance: 'red',
+    startPose: { x: 60, y: 9, h: 90 },
     chains: [{
       id: uid('c_'), name: 'path1',
       segments: [
-        { id: uid('s_'), kind: 'line', controls: [], end: { x: 56, y: 36, h: 180 }, heading: { mode: 'linear' }, name: '' },
-        { id: uid('s_'), kind: 'curve', controls: [{ x: 30, y: 60 }], end: { x: 20, y: 84, h: 180 }, heading: { mode: 'tangential' }, name: '' },
+        { id: uid('s_'), kind: 'line', controls: [], end: { x: 40, y: 30, h: 45 }, heading: { mode: 'linear' }, name: 'to launch', action: { type: 'launch', wait: 1.5 } },
+        { id: uid('s_'), kind: 'curve', controls: [{ x: 22, y: 28 }], end: { x: 16, y: 48, h: 180 }, heading: { mode: 'linear' }, name: 'to flower', action: { type: 'intakePollen', wait: 1 } },
       ],
     }],
     obstacles: [],
@@ -35,6 +37,7 @@ export function sanitizeProject(o) {
     name: String(o.name || 'Imported auto'),
     updatedAt: num(o.updatedAt, Date.now()),
     robot: Object.fromEntries(Object.keys(d).map((k) => [k, num(o.robot?.[k], d[k]) > 0 ? num(o.robot?.[k], d[k]) : d[k]])),
+    alliance: o.alliance === 'blue' ? 'blue' : 'red',
     startPose: pose(o.startPose),
     chains: o.chains.map((c, i) => ({
       id: c.id || uid('c_'), name: String(c.name ?? `path${i + 1}`),
@@ -45,6 +48,7 @@ export function sanitizeProject(o) {
           id: s.id || uid('s_'), kind: controls.length ? 'curve' : 'line', controls, end: pose(s.end),
           heading: mode === 'tangential' && s.heading.reverse ? { mode, reverse: true } : { mode },
           name: String(s.name || ''),
+          ...(ACTIONS.includes(s.action?.type) ? { action: { type: s.action.type, wait: Math.max(0, num(s.action.wait, 0)) } } : {}),
         };
       }),
     })),
@@ -105,6 +109,13 @@ const H = {
   renameProject: (s, a) => edit(s, (p) => { p.name = a.name; }),
   setRobot: (s, a) => edit(s, (p) => {
     for (const [k, v] of Object.entries(a.patch)) if (k in p.robot && Number.isFinite(v) && v > 0) p.robot[k] = v;
+  }),
+  setAlliance: (s, a) => edit(s, (p) => { p.alliance = a.alliance === 'blue' ? 'blue' : 'red'; }),
+  setSegmentAction: (s, a) => edit(s, (p) => {
+    const seg = p.chains[a.chain]?.segments[a.seg];
+    if (!seg) return;
+    if (!ACTIONS.includes(a.action)) delete seg.action;
+    else seg.action = { type: a.action, wait: Math.max(0, Number.isFinite(a.wait) ? a.wait : seg.action?.wait || 0) };
   }),
   setStartPose: (s, a) => edit(s, (p) => { Object.assign(p.startPose, a.patch); }),
   addChain: (s) => {
@@ -190,14 +201,14 @@ const H = {
     for (const k of ['x', 'y', 'w', 'h']) if (a.patch[k] !== undefined && Number.isFinite(a.patch[k])) o[k] = k === 'w' || k === 'h' ? Math.max(0, a.patch[k]) : a.patch[k];
   }),
   deleteObstacle: (s, a) => edit(s, (p) => { p.obstacles.splice(a.index, 1); }),
-  // Alliance mirror: x -> 144 - x, heading -> 180 - h (no wrapping, so it is an involution).
+  // Alliance mirror: 180-degree rotation (x, y, h) -> (144 - x, 144 - y, h + 180), heading normalized to [0, 360).
   mirror: (s) => edit(s, (p) => {
-    const mx = (o) => { o.x = FIELD - o.x; };
-    mx(p.startPose); p.startPose.h = 180 - p.startPose.h;
-    p.chains.forEach((ch) => ch.segments.forEach((sg) => {
-      sg.controls.forEach(mx); mx(sg.end); sg.end.h = 180 - sg.end.h;
-    }));
-    p.obstacles.forEach((o) => { o.x = FIELD - o.x - o.w; });
+    const rot = (o) => { o.x = FIELD - o.x; o.y = FIELD - o.y; };
+    const hd = (o) => { o.h = (((o.h + 180) % 360) + 360) % 360; };
+    rot(p.startPose); hd(p.startPose);
+    p.chains.forEach((ch) => ch.segments.forEach((sg) => { sg.controls.forEach(rot); rot(sg.end); hd(sg.end); }));
+    p.obstacles.forEach((o) => { o.x = FIELD - o.x - o.w; o.y = FIELD - o.y - o.h; });
+    p.alliance = p.alliance === 'blue' ? 'red' : 'blue';
   }),
 };
 
@@ -210,7 +221,7 @@ export function reduce(state, action) {
 export function initialState(project, uiPrefs = {}) {
   return {
     project, selection: NONE,
-    ui: { playhead: 0, playing: false, overlays: defaultOverlays(), tool: 'select', imageOpacity: 0.5, hasImage: false, view: null, cursor: null, draft: null, ...uiPrefs },
+    ui: { playhead: 0, playing: false, overlays: defaultOverlays(), tool: 'select', imageOpacity: 1, hasImage: false, view: null, cursor: null, draft: null, ...uiPrefs },
   };
 }
 

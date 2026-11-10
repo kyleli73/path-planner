@@ -3,6 +3,7 @@ import { startsOf } from './heading.js';
 import { derived, poseAt } from './profile.js';
 import { corners, outOfBounds, obbVsAABB } from './collision.js';
 import { FIELD } from './store.js';
+import { FIELD_OBSTACLES, ZONES } from './field.js';
 
 export const RULER = 18;
 const CHAIN_COLORS = ['#14b8a6', '#60a5fa', '#f59e0b', '#c084fc', '#f472b6', '#a3e635'];
@@ -31,17 +32,6 @@ function drawField(ctx, v, ui, image) {
     ctx.drawImage(image, x0, y0, S, S);
     ctx.globalAlpha = 1;
   }
-  // schematic goal corners (blue top-left, red top-right)
-  const goal = (cx, sx, col, label) => {
-    const [px, py] = w2s(v, cx, FIELD), k = 24 * v.scale;
-    ctx.fillStyle = col;
-    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + sx * k, py); ctx.lineTo(px, py + k); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#cbd5e1'; ctx.font = `${Math.max(9, 3.5 * v.scale)}px system-ui`;
-    ctx.textAlign = sx > 0 ? 'left' : 'right';
-    ctx.fillText(label, px + sx * 3 * v.scale, py + 8 * v.scale);
-  };
-  goal(0, 1, 'rgba(59,130,246,.35)', 'BLUE');
-  goal(FIELD, -1, 'rgba(239,68,68,.35)', 'RED');
   for (let i = 0; i <= 144; i += 6) {
     const major = i % 24 === 0;
     if (!major && v.scale < 3.5) continue;
@@ -83,9 +73,25 @@ export function render(ctx, st, size, image) {
   ctx.beginPath(); ctx.rect(RULER, RULER, w - RULER, h - RULER); ctx.clip();
   drawField(ctx, v, st.ui, image);
 
+  if (ov.zones) {
+    ctx.lineWidth = 1.5; ctx.font = `${Math.max(9, 3 * v.scale)}px system-ui`; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ZONES.forEach((z) => {
+      const [x, y] = w2s(v, z.x, z.y + z.h), col = z.alliance === 'red' ? '#f87171' : '#60a5fa';
+      ctx.strokeStyle = col; ctx.setLineDash([5, 3]); ctx.strokeRect(x, y, z.w * v.scale, z.h * v.scale); ctx.setLineDash([]);
+      if (z.w > 5) { ctx.fillStyle = col; ctx.fillText(z.name.includes('LOADING') ? 'LOADING ZONE' : 'GARDEN', x + 3, y + 3); }
+    });
+  }
+
   if (ov.obstacles) {
-    P.obstacles.forEach((o, i) => {
+    const NF = FIELD_OBSTACLES.length;
+    FIELD_OBSTACLES.forEach((o, i) => {
       const [x, y] = w2s(v, o.x, o.y + o.h), hit = D.hitSet.has(i);
+      ctx.fillStyle = hit ? 'rgba(239,68,68,.45)' : 'rgba(148,163,184,.28)';
+      ctx.strokeStyle = hit ? '#ef4444' : '#94a3b8'; ctx.lineWidth = 1;
+      ctx.fillRect(x, y, o.w * v.scale, o.h * v.scale); ctx.strokeRect(x, y, o.w * v.scale, o.h * v.scale);
+    });
+    P.obstacles.forEach((o, i) => {
+      const [x, y] = w2s(v, o.x, o.y + o.h), hit = D.hitSet.has(NF + i);
       ctx.fillStyle = hit ? 'rgba(239,68,68,.45)' : 'rgba(245,158,11,.28)';
       ctx.strokeStyle = sel.kind === 'obstacle' && sel.index === i ? '#fff' : hit ? '#ef4444' : '#f59e0b';
       ctx.lineWidth = sel.kind === 'obstacle' && sel.index === i ? 2 : 1;
@@ -161,6 +167,11 @@ export function render(ctx, st, size, image) {
     const [x, y] = w2s(v, sg.end.x, sg.end.y), on = sel.kind === 'point' && sel.chain === ci && sel.seg === si && sel.which === 'end';
     ctx.fillStyle = on ? '#fff' : chainColor(ci); ctx.strokeStyle = '#0b1117'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.fill(); ctx.stroke();
+    if (sg.action) {
+      ctx.fillStyle = '#fb923c'; ctx.beginPath(); ctx.arc(x + 9, y - 9, 4, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fed7aa'; ctx.font = '11px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(sg.action.wait ? `${sg.action.type} ${sg.action.wait}s` : sg.action.type, x + 16, y - 9);
+    }
   }));
   const [sx, sy] = w2s(v, P.startPose.x, P.startPose.y);
   ctx.fillStyle = '#22c55e'; ctx.strokeStyle = '#0b1117'; ctx.lineWidth = 2;
@@ -169,7 +180,7 @@ export function render(ctx, st, size, image) {
   if (ov.footprint) {
     const pose = poseAt(D.timeline, st.ui.playhead, P);
     const cs = corners(pose.x, pose.y, pose.h, rb.w, rb.l);
-    const bad = outOfBounds(cs) || P.obstacles.some((o) => obbVsAABB(cs, o));
+    const bad = outOfBounds(cs) || FIELD_OBSTACLES.concat(P.obstacles).some((o) => obbVsAABB(cs, o));
     ctx.beginPath(); poly(ctx, v, cs);
     ctx.fillStyle = bad ? 'rgba(239,68,68,.35)' : 'rgba(20,184,166,.28)'; ctx.fill();
     ctx.strokeStyle = bad ? '#ef4444' : '#14b8a6'; ctx.lineWidth = 2; ctx.stroke();

@@ -13,13 +13,14 @@ const project = () => ({
 });
 const st = (p) => ({ project: p, selection: { kind: 'none' }, ui: {} });
 
-test('mirror: x -> 144 - x, heading -> 180 - h', () => {
+test('mirror: 180-degree rotation (144 - x, 144 - y, h + 180)', () => {
   const n = reduce(st(project()), { type: 'mirror' }).project;
-  assert.deepEqual(n.startPose, { x: 100, y: 20, h: 150 });
-  assert.deepEqual(n.chains[0].segments[0].controls, [{ x: 114, y: 60 }]);
-  assert.deepEqual(n.chains[0].segments[0].end, { x: 124, y: 84, h: 0 });
-  assert.deepEqual(n.obstacles[0], { x: 114, y: 5, w: 20, h: 10 });
-  assert.deepEqual(n.chains[0].segments[0].start, { x: 100, y: 20, h: 150 });
+  assert.deepEqual(n.startPose, { x: 100, y: 124, h: 210 });
+  assert.deepEqual(n.chains[0].segments[0].controls, [{ x: 114, y: 84 }]);
+  assert.deepEqual(n.chains[0].segments[0].end, { x: 124, y: 60, h: 0 });
+  assert.deepEqual(n.obstacles[0], { x: 114, y: 129, w: 20, h: 10 });
+  assert.deepEqual(n.chains[0].segments[0].start, { x: 100, y: 124, h: 210 });
+  assert.equal(n.alliance, 'blue');
 });
 
 test('mirror twice restores geometry', () => {
@@ -33,7 +34,7 @@ test('mirror twice restores geometry', () => {
 test('endpoints chain: moving an end moves the next segment start', () => {
   let s = st(defaultProject());
   s = reduce(s, { type: 'movePoint', chain: 0, seg: 0, which: 'end', x: 60, y: 40 });
-  assert.deepEqual(s.project.chains[0].segments[0].end, { x: 60, y: 40, h: 180 });
+  assert.deepEqual(s.project.chains[0].segments[0].end, { x: 60, y: 40, h: 45 });
 });
 
 test('curve <-> line conversion keeps kind in sync', () => {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chainBlock, generateJava, fmt } from '../src/codegen.js';
-import { defaultProject } from '../src/store.js';
+import { defaultProject, reduce } from '../src/store.js';
 
 const segs = [
   { kind: 'line', controls: [], end: { x: 56, y: 36, h: 180 }, heading: { mode: 'linear' } },
@@ -39,9 +39,20 @@ test('constant and reversed tangential', () => {
 test('full class has field, startPose and buildPaths', () => {
   const j = generateJava(defaultProject('Red Near'));
   assert.ok(j.includes('public class RedNearPaths {'));
-  assert.ok(j.includes('public Pose startPose = new Pose(56, 9, Math.toRadians(90));'));
+  assert.ok(j.includes('public Pose startPose = new Pose(60, 9, Math.toRadians(90));'));
   assert.ok(j.includes('    public PathChain path1;'));
   assert.ok(j.includes('public void buildPaths(Follower follower) {'));
+});
+
+test('actions export in path order with waits', () => {
+  let s = { project: defaultProject('A'), selection: { kind: 'none' }, ui: {} };
+  s = reduce(s, { type: 'setSegmentAction', chain: 0, seg: 1, action: 'launch', wait: 1.5 });
+  s = reduce(s, { type: 'setSegmentAction', chain: 0, seg: 0, action: 'park', wait: 0 });
+  const j = generateJava(s.project);
+  assert.ok(j.includes('public static final String[] ACTIONS = {"park", "launch"};'));
+  assert.ok(j.includes('public static final double[] ACTION_WAITS = {0, 1.5};'));
+  assert.ok(!j.includes('// actions'));
+  assert.ok(generateJava(defaultProject('B')).includes('ACTIONS = {"launch", "intakePollen"};'));
 });
 
 test('fmt trims noise', () => {

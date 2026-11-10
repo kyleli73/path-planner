@@ -3,6 +3,7 @@ import { derived } from './profile.js';
 import { generateJava, className } from './codegen.js';
 import { arcLength, segmentPoints, closestT } from './bezier.js';
 import { startsOf } from './heading.js';
+import { ACTIONS, startWarnings } from './field.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -213,18 +214,22 @@ export function initUI(store, api) {
         <label>Name<input type="text" data-bind="seg.name" placeholder="optional"></label>
         <label>Type<select data-seg="kind"><option value="line" ${sg.kind === 'line' ? 'selected' : ''}>Line</option><option value="curve" ${sg.kind === 'curve' ? 'selected' : ''}>Curve (degree ${sg.controls.length + 1})</option></select></label>
         <label>Heading<select data-seg="heading">${HEADINGS.map(([k, n]) => `<option value="${k}" ${headingKey(sg) === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label>Action<select data-seg="action"><option value="">None</option>${ACTIONS.map((a) => `<option value="${a}" ${sg.action?.type === a ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+        ${sg.action ? `<label>Wait (s)<input type="number" step="0.1" min="0" data-seg="wait" value="${sg.action.wait}"></label>` : ''}
         <div class="row"><button data-act="add-ctl">Add control point</button><button class="danger" data-act="del-seg">Delete segment</button></div>
         <div class="hint" id="segstats"></div></section>`;
     }
-    h += `<section><h3>Start pose</h3><div class="grid2">${numField('x (in)', 'start.x')}${numField('y (in)', 'start.y')}${numField('heading (deg)', 'start.h', 1)}</div></section>`;
+    h += `<section><h3>Start pose</h3><div class="grid2">${numField('x (in)', 'start.x')}${numField('y (in)', 'start.y')}${numField('heading (deg)', 'start.h', 1)}</div><div id="startWarn"></div></section>`;
     if (!sg && sel.kind !== 'obstacle') h += '<p class="hint">Click a path, point or obstacle to inspect it. Double-click a path to add a control point.</p>';
     return h;
   }
   function renderInspector(st) {
     const sel = st.selection;
     const sg = (sel.kind === 'point' || sel.kind === 'segment') ? st.project.chains[sel.chain]?.segments[sel.seg] : null;
-    const sig = JSON.stringify([sel, sg && [sg.kind, sg.controls.length, headingKey(sg)]]);
+    const sig = JSON.stringify([sel, sg && [sg.kind, sg.controls.length, headingKey(sg), sg.action?.type]]);
     if (sig !== inspectorSig) { inspectorSig = sig; $('#inspector').innerHTML = inspectorHTML(st); }
+    const sw = $('#startWarn');
+    if (sw) sw.innerHTML = startWarnings(st.project.startPose, st.project.robot, st.project.alliance).map((m) => `<p class="warn">${esc(m)}</p>`).join('');
     const stats = $('#segstats');
     if (stats && sg) {
       const c = $('#inspector'), D = derived(st.project);
@@ -267,7 +272,9 @@ export function initUI(store, api) {
     if (el.dataset?.bind && el.type === 'text') applyBind(el);
     if (el.dataset?.seg) {
       const sel = store.get().selection;
-      if (el.dataset.seg === 'kind') dispatch({ type: 'setSegmentKind', chain: sel.chain, seg: sel.seg, kind: el.value });
+      if (el.dataset.seg === 'action') dispatch({ type: 'setSegmentAction', chain: sel.chain, seg: sel.seg, action: el.value });
+      else if (el.dataset.seg === 'wait') dispatch({ type: 'setSegmentAction', chain: sel.chain, seg: sel.seg, action: store.get().project.chains[sel.chain].segments[sel.seg].action?.type, wait: parseFloat(el.value) || 0 });
+      else if (el.dataset.seg === 'kind') dispatch({ type: 'setSegmentKind', chain: sel.chain, seg: sel.seg, kind: el.value });
       else setHeading(sel, el.value);
     }
   });
@@ -329,7 +336,9 @@ export function initUI(store, api) {
     const D = derived(st.project), tl = D.timeline;
     $('#totalTime').textContent = `${tl.total.toFixed(2)} s`;
     $('#timeList').innerHTML = st.project.chains.map((ch, c) => `<h3 style="margin-top:10px">${esc(ch.name)}</h3><div class="tl"><b>Chain total</b><b>${tl.chains[c].total.toFixed(2)} s</b></div>` +
+      (D.waits[c] ? `<div class="tl"><span>Wait total</span><span>${D.waits[c].toFixed(2)} s</span></div>` : '') +
       ch.segments.map((s, i) => `<div class="tl"><span>${i + 1}. ${esc(s.name || s.kind)}</span><span>${(tl.chains[c].segTimes[i] || 0).toFixed(2)} s</span></div>`).join('')).join('') +
+      (D.waitTotal ? `<div class="tl"><b>Waits (all chains)</b><b>${D.waitTotal.toFixed(2)} s</b></div><div class="tl"><b>Total with waits</b><b>${(tl.total + D.waitTotal).toFixed(2)} s</b></div>` : '') +
       (D.oobCount ? `<p class="warn">${D.oobCount} samples put the footprint outside the field.</p>` : '') +
       (D.hitCount ? `<p class="warn">${D.hitCount} samples collide with an obstacle.</p>` : '');
     const sc = $('#scrub'); sc.max = tl.total.toFixed(3);
@@ -400,9 +409,10 @@ export function initUI(store, api) {
   $('#play').onclick = togglePlay;
   $('#scrub').oninput = (e) => ui({ playhead: parseFloat(e.target.value), playing: false });
 
+  const DEFAULT_IMG = './field.png';
   const loadImage = (url) => new Promise((res) => {
-    if (!url) { fieldImage = null; return res(); }
-    const im = new Image(); im.onload = () => { fieldImage = im; res(); }; im.onerror = () => res(); im.src = url;
+    if (!url) url = DEFAULT_IMG;
+    const im = new Image(); im.onload = () => { fieldImage = im; res(); }; im.onerror = () => { fieldImage = null; res(); }; im.src = url;
   });
   $('#imgFile').onchange = (e) => {
     const f = e.target.files[0]; e.target.value = '';
@@ -411,9 +421,10 @@ export function initUI(store, api) {
     r.onload = async () => { await api.image.save(r.result); await loadImage(r.result); ui({ hasImage: true }); toast('Field image set'); };
     r.readAsDataURL(f);
   };
-  $('#imgClear').onclick = async () => { await api.image.clear(); fieldImage = null; ui({ hasImage: false }); };
+  $('#imgReset').onclick = async () => { await api.image.clear(); await loadImage(null); ui({ hasImage: false }); toast('Field image reset'); };
+  $('#alliance').onchange = (e) => dispatch({ type: 'setAlliance', alliance: e.target.value });
   $('#imgOpacity').oninput = (e) => ui({ imageOpacity: parseFloat(e.target.value) });
-  api.image.load().then(async (url) => { if (url) { await loadImage(url); ui({ hasImage: true }); } });
+  api.image.load().then(async (url) => { await loadImage(url); ui({ hasImage: !!url }); });
 
   /* ---------- global shortcuts ---------- */
   document.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceDown = false; });
@@ -461,7 +472,7 @@ export function initUI(store, api) {
     const projChanged = st.project !== last.project, selChanged = st.selection !== last.selection;
     if (projChanged || selChanged) { renderChains(st); renderInspector(st); }
     if (projChanged) {
-      renderTiming(st); renderProjects(st);
+      renderTiming(st); renderProjects(st); $('#alliance').value = st.project.alliance;
       clearTimeout(codeTimer); codeTimer = setTimeout(refreshCode, 120);
       $('#undo').disabled = !store.canUndo(); $('#redo').disabled = !store.canRedo();
     }
