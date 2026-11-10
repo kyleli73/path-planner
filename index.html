@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1117">
+<title>Bubblotics Path Planner</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body data-tab="field">
+<header id="top">
+  <div class="brand"><img src="./icon.svg" alt="" width="22" height="22"><span>Bubblotics Path Planner</span></div>
+  <select id="projSel" title="Project"></select>
+  <input id="projName" title="Project name" aria-label="Project name">
+  <button id="projNew" title="New project">New</button>
+  <button id="projDup" title="Duplicate project">Duplicate</button>
+  <button id="projDel" title="Delete project">Delete</button>
+  <span class="sp"></span>
+  <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
+  <button id="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+  <button id="mirror" title="Mirror to other alliance (M)">Mirror</button>
+  <button id="help" title="Shortcuts (?)">?</button>
+</header>
+<main>
+  <aside id="left" class="pane">
+    <div class="phead"><h2>Paths</h2><button id="addChain">+ Chain</button></div>
+    <div id="chains"></div>
+  </aside>
+  <section id="center" class="pane">
+    <div id="toolbar">
+      <button data-tool="select" title="Select / drag">Select</button>
+      <button data-tool="obstacle" title="Draw obstacle (O)">Obstacle</button>
+      <button id="fit" title="Fit field (F)">Fit</button>
+      <span class="sep"></span>
+      <button class="chip" data-ov="footprint">Robot</button>
+      <button class="chip" data-ov="ticks">Heading</button>
+      <button class="chip" data-ov="swept">Swept</button>
+      <button class="chip" data-ov="heat">Curvature</button>
+      <button class="chip" data-ov="bounds">Bounds</button>
+      <button class="chip" data-ov="obstacles">Obstacles</button>
+    </div>
+    <div id="stage"><canvas id="field"></canvas><div id="coords">x -, y -</div></div>
+    <div id="playbar">
+      <button id="play">Play</button>
+      <input id="scrub" type="range" min="0" max="1" step="0.01" value="0" aria-label="Scrub time">
+      <span id="clock">0.00 / 0.00 s</span>
+    </div>
+  </section>
+  <aside id="right" class="pane">
+    <nav id="rtabs">
+      <button data-rtab="inspector">Inspector</button><button data-rtab="robot">Robot</button>
+      <button data-rtab="timing">Timing</button><button data-rtab="code">Code</button>
+    </nav>
+    <div id="inspector" class="rpanel"></div>
+    <div id="robot" class="rpanel">
+      <section>
+        <h3>Robot &amp; limits</h3>
+        <label>Width (in)<input type="number" step="0.1" min="1" data-bind="robot.w"></label>
+        <label>Length (in)<input type="number" step="0.1" min="1" data-bind="robot.l"></label>
+        <label>Max velocity (in/s)<input type="number" step="1" min="1" data-bind="robot.maxVel"></label>
+        <label>Max accel (in/s&sup2;)<input type="number" step="1" min="1" data-bind="robot.maxAccel"></label>
+        <label>Max lateral accel (in/s&sup2;)<input type="number" step="1" min="1" data-bind="robot.maxLatAccel"></label>
+      </section>
+      <section>
+        <h3>Field image</h3>
+        <input type="file" id="imgFile" accept="image/*">
+        <label>Opacity<input type="range" id="imgOpacity" min="0" max="1" step="0.05"></label>
+        <button id="imgClear">Remove image</button>
+        <p class="hint">Stored only in this browser. The image is stretched over the 144 x 144 in field.</p>
+      </section>
+    </div>
+    <div id="timing" class="rpanel">
+      <section><h3>Estimated time</h3><div id="totalTime" class="big">0.00 s</div>
+        <canvas id="spark" height="90"></canvas><p class="hint">Velocity vs. time. Estimate only: curvature-limited, trapezoidal accel, starts and stops at rest on every chain.</p></section>
+      <section id="timeList"></section>
+    </div>
+    <div id="code" class="rpanel">
+      <div class="row"><button id="copy">Copy</button><button id="dlJava">Download .java</button></div>
+      <textarea id="javaOut" readonly spellcheck="false"></textarea>
+      <div class="row"><button id="expJson">Export JSON</button><button id="impJson">Import JSON</button><input type="file" id="impFile" accept=".json,application/json" hidden></div>
+    </div>
+  </aside>
+</main>
+<nav id="mtabs">
+  <button data-tab="left">Paths</button><button data-tab="field">Field</button><button data-tab="right">Panel</button>
+</nav>
+<dialog id="helpDlg">
+  <h2>Keyboard shortcuts</h2>
+  <table id="keys"></table>
+  <form method="dialog"><button>Close</button></form>
+</dialog>
+<div id="toast" role="status"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
